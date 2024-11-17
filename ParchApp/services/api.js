@@ -24,3 +24,13 @@ export const obtenerUsuarios = async () => {
     return [];
   }
 };
+
+export const crearEvento = async (evento) => {
+    try {
+        const response = await axios.post(`${API_URL}/eventos/`, evento);
+        return response.data;
+    } catch (error) {
+        console.error('Error al crear evento:', error);
+        return null;
+    }
+}

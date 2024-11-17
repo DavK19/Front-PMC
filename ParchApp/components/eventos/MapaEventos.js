@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { obtenerEventos } from '../../services/api';
+import RBSheet from 'react-native-raw-bottom-sheet';
 
 const MapaEventos = () => {
   const [eventos, setEventos] = useState([]);
   const [ubicacion, setUbicacion] = useState(null);
+  const [eventosEnUbicacion, setEventosEnUbicacion] = useState([]);
+  const bottomSheetRef = useRef();
 
   // Agrupar los eventos por ubicación
   const agruparEventosPorUbicacion = (eventos) => {
@@ -57,30 +60,94 @@ const MapaEventos = () => {
   // Agrupamos los eventos por ubicación
   const eventosAgrupados = agruparEventosPorUbicacion(eventos);
 
-  return (
-    <MapView style={styles.map} initialRegion={ubicacion}>
-      {Object.keys(eventosAgrupados).map((claveUbicacion) => {
-        const eventosEnUbicacion = eventosAgrupados[claveUbicacion];
-        const latitudLongitud = claveUbicacion.split(',');
-        const latitud = parseFloat(latitudLongitud[0]);
-        const longitud = parseFloat(latitudLongitud[1]);
+  const handleMarkerPress = (eventosEnEstaUbicacion) => {
+    setEventosEnUbicacion(eventosEnEstaUbicacion);
+    bottomSheetRef.current.open();
+  };
 
-        return (
-          <Marker
-            key={claveUbicacion}
-            coordinate={{ latitude: latitud, longitude: longitud }}
-            title={`Eventos en esta ubicación`}
-            description={`Hay ${eventosEnUbicacion.length} eventos aquí`}
-          />
-        );
-      })}
-    </MapView>
+  return (
+    <View style={styles.container}>
+      <MapView style={styles.map} initialRegion={ubicacion}>
+        {Object.keys(eventosAgrupados).map((claveUbicacion) => {
+          const eventosEnUbicacion = eventosAgrupados[claveUbicacion];
+          const latitudLongitud = claveUbicacion.split(',');
+          const latitud = parseFloat(latitudLongitud[0]);
+          const longitud = parseFloat(latitudLongitud[1]);
+
+          return (
+            <Marker
+              key={claveUbicacion}
+              coordinate={{ latitude: latitud, longitude: longitud }}
+              title={`Eventos en esta ubicación`}
+              description={`Hay ${eventosEnUbicacion.length} eventos aquí`}
+              onPress={() => handleMarkerPress(eventosEnUbicacion)}
+            />
+          );
+        })}
+      </MapView>
+
+      {/* Panel deslizable con los detalles de los eventos */}
+      <RBSheet
+        ref={bottomSheetRef}
+        height={400} // Altura del panel (puedes ajustar esta altura)
+        openDuration={250}
+        closeDuration={200}
+        customStyles={{
+          container: {
+            padding: 10,
+            backgroundColor: 'white',
+          },
+        }}
+      >
+        <Text style={styles.panelTitle}>Eventos en esta ubicación</Text>
+        <FlatList
+          data={eventosEnUbicacion}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.eventDetails}>
+              <Text style={styles.title}>{item.nombre}</Text>
+              <Text style={styles.description}>{item.descripcion}</Text>
+              <Text style={styles.date}>Fecha: {new Date(item.fecha).toLocaleString()}</Text>
+              <Text style={styles.rating}>Calificación: {item.calificacion}</Text>
+              <Text style={styles.users}>Cantidad de usuarios: {item.usuarios.length}</Text>
+            </View>
+          )}
+        />
+      </RBSheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   map: {
     flex: 1,
+  },
+  panelTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  eventDetails: {
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  description: {
+    fontSize: 14,
+  },
+  date: {
+    fontSize: 14,
+  },
+  rating: {
+    fontSize: 14,
+  },
+  users: {
+    fontSize: 14,
   },
 });
 
