@@ -1,63 +1,80 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { obtenerEventos } from '../../services/api';
 import RBSheet from 'react-native-raw-bottom-sheet';
+import { useFocusEffect } from '@react-navigation/native';
 
 const MapaEventos = () => {
   const [eventos, setEventos] = useState([]);
   const [ubicacion, setUbicacion] = useState(null);
   const [eventosEnUbicacion, setEventosEnUbicacion] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const bottomSheetRef = useRef();
 
-  // Agrupar los eventos por ubicación
   const agruparEventosPorUbicacion = (eventos) => {
     const agrupados = {};
-
     eventos.forEach((evento) => {
       const claveUbicacion = `${evento.latitud.toFixed(5)},${evento.longitud.toFixed(5)}`;
-
       if (!agrupados[claveUbicacion]) {
         agrupados[claveUbicacion] = [];
       }
-
       agrupados[claveUbicacion].push(evento);
     });
-
     return agrupados;
   };
 
-  useEffect(() => {
-    const fetchEventos = async () => {
-      const data = await obtenerEventos();
-      setEventos(data);
-    };
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchData = async () => {
+        setIsLoading(true);
+        try {
+          const [eventosData, locationData] = await Promise.all([
+            obtenerEventos(),
+            Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
+              if (status !== 'granted') {
+                alert('Permisos de ubicación denegados');
+                return null;
+              }
+              return Location.getCurrentPositionAsync({});
+            })
+          ]);
 
-    const obtenerUbicacion = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        alert('Permisos de ubicación denegados');
-        return;
-      }
-      const location = await Location.getCurrentPositionAsync({});
-      setUbicacion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      });
-    };
+          if (locationData) {
+            setUbicacion({
+              latitude: locationData.coords.latitude,
+              longitude: locationData.coords.longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+          }
 
-    fetchEventos();
-    obtenerUbicacion();
-  }, []);
+          setEventos(eventosData);
+        } catch (error) {
+          console.error('Error fetching data:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchData();
+    }, [])
+  );
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text>Cargando eventos...</Text>
+      </View>
+    );
+  }
 
   if (!ubicacion) {
     return <Text>Cargando ubicación...</Text>;
   }
 
-  // Agrupamos los eventos por ubicación
   const eventosAgrupados = agruparEventosPorUbicacion(eventos);
 
   const handleMarkerPress = (eventosEnEstaUbicacion) => {
@@ -86,10 +103,9 @@ const MapaEventos = () => {
         })}
       </MapView>
 
-      {/* Panel deslizable con los detalles de los eventos */}
       <RBSheet
         ref={bottomSheetRef}
-        height={400} // Altura del panel (puedes ajustar esta altura)
+        height={400}
         openDuration={250}
         closeDuration={200}
         customStyles={{
@@ -124,6 +140,11 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   panelTitle: {
     fontSize: 18,
